@@ -1,4 +1,4 @@
-module github.com/AlekSi/gocov-xml
+module github.com/NicklasWallgren/gocov-xml
 
 go 1.13
 

@@ -5,14 +5,14 @@ import (
 	"encoding/xml"
 	"flag"
 	"fmt"
+	"github.com/axw/gocov"
 	"go/token"
 	"io/ioutil"
+	"math/bits"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
-
-	"github.com/axw/gocov"
 )
 
 // Coverage information
@@ -101,6 +101,9 @@ func main() {
 	sources[0] = sourcePath
 	var r struct{ Packages []gocov.Package }
 	var totalLines, totalHits int64
+
+	//file, err := os.Open("/Users/nicklas.wallgren/Downloads/gocov-xml/coverage-smaller.json")
+
 	err = json.NewDecoder(os.Stdin).Decode(&r)
 	if err != nil {
 		panic(err)
@@ -158,18 +161,64 @@ func main() {
 				tokenFile.SetLinesForContent(tokenData)
 			}
 
-			// convert statements to lines
-			lines := make([]Line, len(gFunction.Statements))
-			var funcHits int
-			for i, s := range gFunction.Statements {
-				lineno := tokenFile.Line(tokenFile.Pos(s.Start))
-				line := Line{Number: lineno, Hits: s.Reached}
-				if int(s.Reached) > 0 {
-					funcHits++
-				}
-				lines[i] = line
-				class.Lines = append(class.Lines, line)
+			//fmt.Println(gFunction.Name)
+
+			if len(gFunction.Statements) <= 0 {
+				continue
 			}
+
+			lineNumberStart, lineNumberEnd := (1<<bits.UintSize)/2-1, 0
+
+			for _, s := range gFunction.Statements {
+				start := tokenFile.Line(tokenFile.Pos(s.Start))
+				end := tokenFile.Line(tokenFile.Pos(s.End))
+
+				if start <= lineNumberStart {
+					lineNumberStart = start
+				}
+
+				if end > lineNumberEnd {
+					lineNumberEnd = end
+				}
+			}
+
+			//fmt.Println(lineNumberStart)
+			//fmt.Println(lineNumberEnd)
+
+			var numberOfLines = 0
+
+			if lineNumberEnd-lineNumberStart > 0 {
+				numberOfLines = lineNumberEnd - lineNumberStart
+
+				//continue
+			}
+
+			//fmt.Printf("Number of lines %d \n", numberOfLines)
+
+			index := lineNumberStart
+
+			lines := make([]Line, numberOfLines+1)
+			var funcHits int
+
+			for _, s := range gFunction.Statements {
+				start := tokenFile.Line(tokenFile.Pos(s.Start))
+				end := tokenFile.Line(tokenFile.Pos(s.End))
+
+				//fmt.Printf("line start %d line end %d \n", start, end)
+
+				for lineno := start; lineno <= end; lineno++ {
+					line := Line{Number: lineno, Hits: s.Reached}
+					if int(s.Reached) > 0 {
+						funcHits++
+					}
+
+					//fmt.Printf("insert index %d \n", lineno-index)
+
+					lines[lineno-index] = line
+					class.Lines = append(class.Lines, line)
+				}
+			}
+
 			lineRate := float32(funcHits) / float32(len(gFunction.Statements))
 
 			class.Methods = append(class.Methods, Method{Name: methodName, Lines: lines, LineRate: lineRate})
